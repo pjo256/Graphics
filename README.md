@@ -8,3 +8,10 @@ To model erosion, we implemented an erosion algorithm proposed by Musgrave[1989]
 Prior to rendering, we sweep over the terrain to average vertex heights: height becomes the average value of neighbouring altitudes.
 
 There's a camera attached to the mouse, so you can freely roam about the landscape using WASD and mouse movements. Use R and F to control position along the vertical axis. Furthermore, both heat and moisture maps can be toggled by pressing 2 and 3. 1 toggles the biome view. 'E' generates a new terrain. 
+
+# Running
+
+```
+npm install
+npm start
+```
