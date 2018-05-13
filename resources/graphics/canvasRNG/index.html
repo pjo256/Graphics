@@ -1,0 +1,88 @@
+<head>
+<script src=/static/js/g_rng.js></script>
+</head>
+<body onload=g_start()>
+<canvas id=myCanvas1 width=640 height=640></canvas>
+<script>
+
+// Inspiration from github.com/TechAtNYU/startup-week/app.js, drawing static triangles in Raphael.js
+
+//For one triangle, add set to draw base-case and remove clear from g.js
+var set = false;
+
+myCanvas1.animate = function (g) {
+   var width = g.canvas.width;
+   var height = g.canvas.height;
+
+   function RNG(min, max) {
+      return Math.floor(Math.random() * max + min);
+   }
+
+   var max_len = RNG(25, 40);
+         
+   var Triangle = function(x, y) {
+      this.x = x;
+      this.y = y;
+      this.cut = false;
+   };
+         
+         
+   Triangle.prototype.setVertices = function() {
+
+      function getVertex(coord) {
+         var mult = RNG(0, 100) > 50 ? 1 : -1;     
+         return coord + (mult * RNG(0, max_len));
+      }
+            
+      
+      this.vx1 = getVertex(this.x);
+      this.vy1 = getVertex(this.y);
+      this.vx2 = getVertex(this.x);
+      this.vy2 = getVertex(this.y);
+      this.vx3 = getVertex(this.x);
+      this.vy3 = getVertex(this.y);
+      
+            
+      var x_mean = (this.vx1 + this.vx2 + this.vx3) / 3;
+      var y_mean = (this.vy1 + this.vy2 + this.vy3) / 3;
+
+      if (x_mean > width || y_mean > height) {
+         this.cut = true;
+      }
+   };
+         
+   function draw(depth) {
+      if (depth > RNG(10, 20)) {
+         return;
+      }
+
+      var triangle = new Triangle(RNG(0, width), RNG(0, height));
+      triangle.setVertices();
+  
+      var red = RNG(0, 255);
+      var green = RNG(0, 255);
+      var blue = RNG(0, 255);
+      if (triangle.cut != true) {
+         g.fillStyle = 'rgb(' + red + ', ' + green + ', ' + blue + ')';
+         g.beginPath();
+         g.moveTo(triangle.vx1, triangle.vy1);
+         g.lineTo(triangle.vx2, triangle.vy2);
+         g.lineTo(triangle.vx3, triangle.vy3);
+         g.moveTo(triangle.vx2, triangle.vy2);
+         g.lineTo(triangle.vx3, triangle.vy3);
+         g.fill();
+      }
+         
+      draw(depth + 1);  
+   }
+         
+   if (width > RNG(300, 400) && Math.random() > 0.80) {
+        draw(0);
+   }
+
+   set = true;  
+}
+
+</script>
+</body>
+

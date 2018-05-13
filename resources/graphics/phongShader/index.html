@@ -1,0 +1,214 @@
+<style>
+	body {background-color: #000000;}
+	p {width: 300px; margin: 100px auto ; padding: 20px; border: 1px solid #ccc5a2; color: #ffffff; font-size: 12px; font-family: "Lucida Grand",verdana,arial,sans-serif;}
+	canvas {vertical-align: top;}
+</style>
+<script src=/static/js/gl_lib3.js></script>
+<script>
+
+// USEFUL MATH: NORMALIZE THE LENGTH OF A 3D VECTOR.
+
+function normalize(v) {
+   var s = Math.sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+   v[0] /= s;
+   v[1] /= s;
+   v[2] /= s;
+   return v;
+}
+
+// INFO ABOUT SHADING THE SURFACE. NOTE THAT SPECULAR REMAINS UNIMPLEMENTED.
+
+var ambient = [[0.1, 0.1, 0], [0.3, 0.1, 0]];
+var diffuse = [[0.9, 0.3, 0], [0.9, 0.3, 0.1]];
+var specular = [[0.2, 0.3, 0], [0.4, 0.5, 0]];
+
+// DIRECTION AND COLOR FOR EACH LIGHT SOURCE.
+
+var lightDir = [[1, -1, 0.5], [-1, 1 ,-1]];
+var lightRGB = [[.8, 1, -1], [.8,.3,.2]];
+
+// MAKE SURE ALL LIGHT DIRECTIONS ARE UNIT LENGTH.
+
+for (var n = 0 ; n < lightDir.length; n++)
+   lightDir[n] = normalize(lightDir[n]);
+
+/*
+   The following two functions are optional.
+   If you define initialize_gl, it will be called once.
+   If you define update_gl, it will be called every animation frame.
+   Here we are using them to initialize and then update uniform vars.
+*/
+
+var initialize_gl = function(gl) {
+   gl.pos1 = gl.getUniformLocation(gl.prog, "pos1");
+   gl.pos2 = gl.getUniformLocation(gl.prog, "pos2");
+   gl.color1 = gl.getUniformLocation(gl.prog, "color1");
+   gl.color2 = gl.getUniformLocation(gl.prog, "color2");
+   gl.bg = gl.getUniformLocation(gl.prog, "bg");
+   gl.u_ambient = gl.getUniformLocation(gl.prog, "u_ambient");
+   gl.u_diffuse = gl.getUniformLocation(gl.prog, "u_diffuse");
+   gl.u_specular = gl.getUniformLocation(gl.prog, "u_specular");
+   gl.u_lightDir = gl.getUniformLocation(gl.prog, "u_lightDir");
+   gl.u_lightRGB = gl.getUniformLocation(gl.prog, "u_lightRGB");
+};
+
+/*
+   u_diffuse is type vec3[2]
+*/
+
+var update_gl = function(gl) {
+   gl.uniform1fv(gl.pos1, new Float32Array([0.20, -.3, -0.8]));
+   gl.uniform1fv(gl.pos2, new Float32Array([-0.1, -0.25, -1.]));
+   gl.uniform1fv(gl.color1, new Float32Array([0.0, 0.1, 3.0]));
+   gl.uniform1fv(gl.color2, new Float32Array([.7, 0.2, 0.8]));
+   gl.uniform1fv(gl.bg, new Float32Array([1.0, 1.0, 0.3]));
+   gl.uniform3fv(gl.u_diffuse, new Float32Array([ diffuse[0][0], diffuse[0][1], diffuse[0][2],
+                                                  diffuse[1][0], diffuse[1][1], diffuse[1][2] ]));
+   gl.uniform3fv(gl.u_ambient, new Float32Array([ ambient[0][0], ambient[0][1], ambient[0][2],
+                                                  ambient[1][0], ambient[1][1], ambient[1][2] ]));
+   gl.uniform3fv(gl.u_specular, new Float32Array([ specular[0][0], specular[0][1], specular[0][2],
+                                                  specular[1][0], specular[1][1], specular[1][2] ]));
+
+   var L = [];
+   for (var n = 0 ; n < lightDir.length ; n++)
+      L = L.concat(lightDir[n]);
+
+   gl.uniform3fv(gl.u_lightDir, new Float32Array(L));
+
+   var L = [];
+   for (var n = 0 ; n < lightRGB.length ; n++)
+      L = L.concat(lightRGB[n]);
+
+   gl.uniform3fv(gl.u_lightRGB, new Float32Array(L));
+};
+
+// THE VERTEX SHADER RUNS ONCE PER TRIANGLE VERTEX.
+
+var vertexShader = [
+,'   attribute vec3 a_pos;'
+,'   varying   vec3 v_pos;'
+,'   void main() {'
+,'      gl_Position = vec4(a_pos, 1.0);'
+,'      v_pos = a_pos;'
+,'   }'
+].join('\n');
+
+// THE FRAGMENT SHADER RUNS ONCE PER PIXEL FRAGMENT.
+
+var fragmentShader = [ 
+,'  precision mediump float;'
+,'  uniform float u_time;'
+,'  uniform vec3  u_mouse;'
+,'	 uniform float u_pixelSize;'
+,'	 uniform float pos1[3];'
+,'	 uniform float pos2[3];'
+,'	 uniform float color1[3];'
+,'	 uniform float color2[3];'
+,'	 uniform float bg[3];'
+,'  uniform vec3  u_ambient[2];'
+,'  uniform vec3  u_diffuse[2];'
+,'  uniform vec3  u_specular[2];'
+,'  uniform vec3  u_lightDir[2];'
+,'  uniform vec3  u_lightRGB[2];'
+,'  varying vec3  v_pos;'
+,'	 float intersect_sphere(vec4 ray, vec4 ray_dir, vec4 sphere)'
+,'	 {'
+,'		float radius = sphere[3];'
+,'		vec4 center = vec4(sphere[0], sphere[1], sphere[2], 1.0);'
+,'		vec4 ray_center = ray-center;'
+,'		float c = dot(ray_center, ray_center) - (radius*radius);'
+,'		float b = dot(ray_dir, ray_center);'
+,'		float d = b*b - c;'
+,'		float t = -b - sqrt(abs(d));'
+,'		return (d < 0.0) ? 100000. : t;'
+,'	}'
+,'	vec4 shading(vec4 ray, vec4 ray_dir, int sphere_ind, vec4 sphere)'
+,'	{'
+,'         vec3 ambient_factor;'
+,'         vec3 diffuse_factor;'
+,'         vec3 specular_factor;'
+,'         float specular_power;'
+,'         if (sphere_ind == 0)'
+,'         {'
+,'             ambient_factor = u_ambient[0];'
+,'             diffuse_factor = u_diffuse[0];'
+,'             specular_factor = u_specular[0];'
+,'             specular_power = 50.;'
+,'         }'
+,'         else if (sphere_ind == 1)'
+,'         {'
+,'             ambient_factor = u_ambient[1];'
+,'             diffuse_factor = u_diffuse[1];'
+,'             specular_factor = u_specular[1];'
+,'             specular_power = 40.;'
+,'         }'
+,'         vec3 color = ambient_factor;'
+,'         vec3 normal = vec3(normalize(ray.xyz - sphere.xyz));'
+,'         vec3 diffuse = max(0., dot(normal, u_lightDir[0])) * u_lightRGB[0] +'
+,'                        max(0., dot(normal, u_lightDir[1])) * u_lightRGB[1] ;'
+,'         vec3 i = -vec3(ray_dir);'
+           //Compute reflection vector for a view ray. Could also compute an r vector for each light source.
+,'         vec3 reflection = 2. * dot(normal, i) * normal - i;'
+         
+,'         vec3 specular = pow(max(0., dot(reflection, u_lightDir[0])), specular_power) * u_lightRGB[0] +'
+,'                          pow(max(0., dot(reflection, u_lightDir[1])), specular_power) * u_lightRGB[1];'
+,'         color += (diffuse_factor * diffuse) + (specular_factor * specular);'
+,'         return vec4(color, 1.0);'
+,'	}'
+,'	vec4 bg_shading(vec4 ray_dir)'
+,'	{'
+,'		vec4 ld = normalize(vec4(.6, .6, .6, 0.0));'
+,'		if (.05 * v_pos.x * v_pos.x <= - v_pos.y - .5) {'
+,'			return pow(.25, abs(dot(ld, ray_dir))) * vec4(bg[0], bg[1], bg[2], 1.0);'
+,'		} else {'
+,'			return vec4(0.0, 0.0, 0.0, 1.0);'
+,'		}'
+,'	}'
+,'	void main()'
+,'	{'
+,'  	vec4 ray_orig = vec4(0.0, 0.0, 1., 1.0);'
+,'		vec4 ray_dir = normalize(vec4(v_pos.x, v_pos.y, -1., 0.0));'
+,'		vec4 p = vec4(pos1[0] - 0.01 * 2.5 * cos(u_time), pos1[1] + cos(u_time), pos1[2] + ((.15 + .25 * cos(u_time) + 1. * sin(u_time))), .25);'
+,'    vec4 p2 = vec4(pos2[0] - 0.05 + 0.5 * cos(u_time), pos2[1], pos2[2] + ((0.01 + 0.01 * cos(u_time) - 0.01 * sin(u_time))), .6);'
+,'		float t = intersect_sphere(ray_orig, ray_dir, p);'
+,'		float t2 = intersect_sphere(ray_orig, ray_dir, p2);'
+,'		vec4 normal;'
+,'    vec4 ray;'
+,'    vec4 sphere_color;'
+,'    vec4 sphere;'
+,'    int sphere_num;'
+,'		if (t > t2 && t2 != 100000.) {'
+,'       ray = ray_orig + ray_dir * t2;'
+,'       sphere_color = vec4(color2[0], color2[1], color2[2], 1.0);'
+,'       sphere_num = 1;'
+,'       sphere = p2;'
+,'		} else if (t < t2 && t != 100000.) {'
+,'       ray = ray_orig + ray_dir * t;'
+,'       sphere_color = vec4(color1[0], color1[1], color1[2], 1.0);'
+,'       sphere_num = 0;'
+,'       sphere = p;'
+,'		}'
+,'		'
+,'		if (t == 100000. && t2 == 100000.) {'
+,'			gl_FragColor = bg_shading(ray_dir) * vec4(0.5, 0.4, 0.3, 0.0);'
+,'		}'		
+,'		else {'
+,'       vec4 color = shading(ray, ray_dir, sphere_num, sphere) * sphere_color ;'
+,'       gl_FragColor = vec4(pow(color, vec4(.45, .45, .45, 1.0)));'
+,'		}'
+,'	}'
+].join('\n');
+
+// START GL PROGRAM
+
+start_gl("canvas1", vertexShader, fragmentShader);
+
+</script>
+
+<body>
+	<div>
+		<center>
+			<canvas id="canvas1" width="640" height="640"></canvas>
+		</center>
+	</div>
+</body>

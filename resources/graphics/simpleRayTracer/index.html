@@ -1,0 +1,90 @@
+<style>
+	body {background-color: #000000;}
+	p {width: 300px; margin: 100px auto ; padding: 20px; border: 1px solid #ccc5a2; color: #ffffff; font-size: 12px; font-family: "Lucida Grand",verdana,arial,sans-serif;}
+	canvas {vertical-align: top;}
+</style>
+<script src=/static/js/gl_lib1.js></script>
+<script>
+
+// THE VERTEX SHADER RUNS ONCE PER TRIANGLE VERTEX.
+
+var vertexShader = [
+,'   attribute vec3 a_pos;'
+,'   varying   vec3 v_pos;'
+,'   void main() {'
+,'      gl_Position = vec4(a_pos, 1.0);'
+,'      v_pos = a_pos;'
+,'   }'
+].join('\n');
+
+// THE FRAGMENT SHADER RUNS ONCE PER PIXEL FRAGMENT.
+
+var fragmentShader = [ 
+,'   precision mediump float;'
+,'   uniform float u_time;'
+,'   uniform vec3  u_mouse;'
+,'	 uniform float u_pixelSize;'
+,'   varying vec3  v_pos;'
+,'	 float intersect_sphere(vec4 ray, vec4 ray_dir, vec4 sphere)'
+,'	 {'
+,'		float radius = sphere[3];'
+,'		vec4 center = vec4(sphere[0], sphere[1], sphere[2], 1.0);'
+,'		vec4 ray_center = ray-center;'
+,'		float c = dot(ray_center, ray_center) - (radius*radius);'
+,'		float b = dot(ray_dir, ray_center);'
+,'		float d = b*b - c;'
+,'		float t = -b - sqrt(abs(d));'
+,'		return (d < 0.0) ? 100000. : t;'
+,'	}'
+,'	vec4 shading(vec4 ray_dir)'
+,'	{'
+,'		vec4 ld = normalize(vec4(sin(u_time), 1.0, cos(u_time), 0.0));'
+,'		return mod(2., abs(dot(ld, ray_dir))) * vec4(1.0, 1.0, 0.3, 1.0);'
+,'	}'
+,'	void main()'
+,'	{'
+,'  	vec4 ray_orig = vec4(0.0, 0.0, -3.0, 1.0);'
+,'		vec4 ray_dir = normalize(vec4(v_pos.x, v_pos.y, 1.0, 0.0));'
+,'		vec4 p = vec4(.5, -.1, -1.0, .5);'
+,'		vec4 p2 = vec4(-.5, -.5, .0, 1.2);'
+,' 		float t = intersect_sphere(ray_orig, ray_dir, p);'
+,'		float t2 = intersect_sphere(ray_orig, ray_dir, p2);'
+,'		float first;'
+,'		vec4 normal;'
+,'		if (t > t2 && t2 != 100000.) {'
+,'			first = t2;'
+,'			normal = normalize(p2 - (ray_orig + ray_dir * t2));'
+,'		} else if (t < t2 && t != 100000.) {'
+,'			first = t;'
+,'			normal = normalize(p - (ray_orig + ray_dir * t));'
+,'		}'
+,'		'
+,'		if (t == 100000. && t2 == 100000.) {'
+,'			gl_FragColor = vec4(0., 0., 0., 1.0);'
+,'		} else {'
+,'			vec4 bg_color = shading(ray_dir);'
+,'			ray_dir = reflect(ray_dir, normal);'
+,'			vec4 color = (first == t) ? shading(ray_dir) * vec4(0.0, 0.0, 5.0, 1.0) : shading(ray_dir) * vec4(1.0, 0.2, 0.8, 1.0);'
+,'			gl_FragColor = vec4( mix(vec3(bg_color), vec3(color), step(0.0, first)), 1.0 );'
+,'		}'
+,'	}'
+].join('\n');
+
+// START GL PROGRAM
+
+start_gl("canvas1", vertexShader, fragmentShader);
+
+</script>
+
+<body>
+	<div>
+		<center>
+			<canvas id="canvas1" width="640" height="640"></canvas>
+		</center>
+	</div>
+	<div>
+		<p>
+			Try changing the shading method to mod(exp(u_time), ...). Super cool.
+		</p>
+	</div>
+</body>

@@ -1,0 +1,67 @@
+<style>
+	body {background-color: #000000;}
+	p {width: 300px; margin: 100px auto ; padding: 20px; border: 1px solid #ccc5a2; color: #ffffff; font-size: 12px; font-family: "Lucida Grand",verdana,arial,sans-serif;}
+	canvas {vertical-align: top;}
+</style>
+<script src=/static/js/gl_lib1.js></script>
+<script>
+
+// THE VERTEX SHADER RUNS ONCE PER TRIANGLE VERTEX.
+
+var vertexShader = [
+,'   attribute vec3 a_pos;'
+,'   varying   vec3 v_pos;'
+,'   void main() {'
+,'      gl_Position = vec4(a_pos, 1.0);'
+,'      v_pos = a_pos;'
+,'   }'
+].join('\n');
+
+// THE FRAGMENT SHADER RUNS ONCE PER PIXEL FRAGMENT.
+
+var fragmentShader = [ 
+,'   precision mediump float;'
+,'   uniform float u_time;'
+,'   uniform vec3  u_mouse;'
+,'   varying vec3  v_pos;'
+,'	 float towers(vec3 p, vec3 q, float r) {'
+,'		if (u_mouse.z == 1.) {'
+,'			return length(max(abs(p) - 0.5 * q, 0.0)) - r;'
+,'		} else {'
+,'			return length(max(abs(p) - 0.5 * q, 0.02)) - r;'
+,'		}'
+,'	 }'
+,'	 float rep(vec3 p, vec3 q) {'
+,'		vec3 r = mod(p, q) - 0.5 * q;'
+,'		return towers(r, p, length(r));'
+,'	 }'
+,'   void main() {'
+,'		float dist = rep(v_pos, u_mouse);'
+,'		float t = dist;'
+,'		if (u_mouse.z == 0.0) {'
+,'			t = 5. * tan(u_time * dist) + cos(u_time * dist);'
+,'		}'
+,'      gl_FragColor = mix(vec4(.90, .90, .90, 1.), vec4(.50 * cos(u_time), .50 * cos(u_time), .50 * cos(u_time), 1.), smoothstep(.0005, .0002, t));'
+,'   }'
+].join('\n');
+
+// START GL PROGRAM
+
+start_gl("canvas1", vertexShader, fragmentShader);
+
+</script>
+
+<body>
+	<div>
+		<center>
+			<canvas id="canvas1" width="640" height="640"></canvas>
+		</center>
+	</div>
+	<div>
+		<p>
+			Left-click for towers.
+		</p>
+	</div>
+</body>
+
+

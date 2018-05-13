@@ -1,0 +1,60 @@
+<style>
+	body {background-color: #000000;}
+	p {width: 300px; margin: 100px auto ; padding: 20px; border: 1px solid #ccc5a2; color: #ffffff; font-size: 12px; font-family: "Lucida Grand",verdana,arial,sans-serif;}
+	canvas {vertical-align: top;}
+</style>
+<script src=/static/js/gl_lib1.js></script>
+<script>
+
+// THE VERTEX SHADER RUNS ONCE PER TRIANGLE VERTEX.
+
+var vertexShader = [
+,'   attribute vec3 a_pos;'
+,'   varying   vec3 v_pos;'
+,'   void main() {'
+,'      gl_Position = vec4(a_pos, 1.0);'
+,'      v_pos = a_pos;'
+,'   }'
+].join('\n');
+
+// THE FRAGMENT SHADER RUNS ONCE PER PIXEL FRAGMENT.
+
+/*
+   Your assignment is to write a more interesting version of the
+   fragment shader program.  Try to have fun with it -- use "u_time"
+   to create animated patterns, and "u_mouse" to make it responsive
+   to a user's mouse gestures.
+*/
+
+var fragmentShader = [ 
+,'   precision mediump float;'
+,'   uniform float u_time;'
+,'   uniform vec3  u_mouse;'
+,'   varying vec3  v_pos;'
+,'   void main() {'
+,'		float f = exp( mod(exp(sin(v_pos.x)), v_pos.y - u_mouse.y*u_mouse.z) );'
+,'		'
+,'      gl_FragColor = vec4(cos(f), cos(f * u_time), .5, 1.0);'
+,'   }'
+].join('\n');
+
+// START GL PROGRAM
+
+start_gl("canvas1", vertexShader, fragmentShader);
+
+</script>
+
+<body bgcolor="#000000">
+	<div>
+		<center>
+			<canvas id="canvas1" width="640" height="640"></canvas>
+		</center>
+	</div>
+	<div>
+		<p>
+			An attempt at a receding landscape feel. Over time, something of a landscape can be seen. At some point, you can see ellipses forming on the curves. You can get other interesting patterns by setting floats dependent on v_pos.x and v_pos.y separately, and passing them to the corresponding co-ordinates in the gl_FragColor vector. 
+		</p>
+	</div>
+</body>
+
+

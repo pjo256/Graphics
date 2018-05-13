@@ -1,0 +1,144 @@
+<style>
+	body {background-color: #000000;}
+	p {width: 300px; margin: 100px auto ; padding: 20px; border: 1px solid #ccc5a2; color: #ffffff; font-size: 12px; font-family: "Lucida Grand",verdana,arial,sans-serif;}
+	canvas {vertical-align: top;}
+</style>
+<script src=/static/js/gl_lib2.js></script>
+<script>
+
+/*
+   The following two functions are optional.
+   If you define initialize_gl, it will be called once.
+   If you define update_gl, it will be called every animation frame.
+   Here we are using them to initialize and then update uniform vars.
+*/
+
+var initialize_gl = function(gl) {
+   gl.pos1 = gl.getUniformLocation(gl.prog, "pos1");
+   gl.pos2 = gl.getUniformLocation(gl.prog, "pos2");
+   gl.color1 = gl.getUniformLocation(gl.prog, "color1");
+   gl.color2 = gl.getUniformLocation(gl.prog, "color2");
+   gl.bg = gl.getUniformLocation(gl.prog, "bg");
+};
+
+/*
+   Notice that the number of items passed to a uniform needs to equal the size of that uniform.
+   u_array1 is type float[4], so it needs 1 * 4 == 4 values.
+   u_array2 is type  vec2[4], so it needs 2 * 4 == 8 values.
+*/
+
+var update_gl = function(gl) {
+   gl.uniform1fv(gl.pos1, new Float32Array([1.05, -.70, -1.25]));
+   gl.uniform1fv(gl.pos2, new Float32Array([0.05, -.20, .0]));
+   gl.uniform1fv(gl.color1, new Float32Array([0.0, 0.0, 5.0]));
+   gl.uniform1fv(gl.color2, new Float32Array([1.0, 0.2, 0.8]));
+   gl.uniform1fv(gl.bg, new Float32Array([1.0, 1.0, 0.3]));
+};
+
+// THE VERTEX SHADER RUNS ONCE PER TRIANGLE VERTEX.
+
+var vertexShader = [
+,'   attribute vec3 a_pos;'
+,'   varying   vec3 v_pos;'
+,'   void main() {'
+,'      gl_Position = vec4(a_pos, 1.0);'
+,'      v_pos = a_pos;'
+,'   }'
+].join('\n');
+
+// THE FRAGMENT SHADER RUNS ONCE PER PIXEL FRAGMENT.
+
+var fragmentShader = [ 
+,'   precision mediump float;'
+,'   uniform float u_time;'
+,'   uniform vec3  u_mouse;'
+,'	 uniform float u_pixelSize;'
+,'	 uniform float pos1[3];'
+,'	 uniform float pos2[3];'
+,'	 uniform float color1[3];'
+,'	 uniform float color2[3];'
+,'	 uniform float bg[3];'
+,'   varying vec3  v_pos;'
+,'	 float intersect_sphere(vec4 ray, vec4 ray_dir, vec4 sphere)'
+,'	 {'
+,'		float radius = sphere[3];'
+,'		vec4 center = vec4(sphere[0], sphere[1], sphere[2], 1.0);'
+,'		vec4 ray_center = ray-center;'
+,'		float c = dot(ray_center, ray_center) - (radius*radius);'
+,'		float b = dot(ray_dir, ray_center);'
+,'		float d = b*b - c;'
+,'		float t = -b - sqrt(abs(d));'
+,'		return (d < 0.0) ? 100000. : t;'
+,'	}'
+,'	vec4 shading(vec4 ray_dir)'
+,'	{'
+,'		vec4 ld = normalize(vec4(sin(u_time), .6, cos(u_time), 0.0));'
+,'		return mod(2., abs(dot(ld, ray_dir))) * vec4(1.0, 1.0, 0.3, 1.0);'
+,'	}'
+,'	vec4 bg_shading(vec4 ray_dir)'
+,'	{'
+,'		vec4 ld = normalize(vec4(.6, .6, .6, 0.0));'
+,'		if (.05 * v_pos.x * v_pos.x <= - v_pos.y - .5) {'
+,'			return pow(.25, abs(dot(ld, ray_dir))) * vec4(bg[0], bg[1], bg[2], 1.0);'
+,'		} else {'
+,'			return vec4(0.0, 0.0, 0.0, 1.0);'
+,'		}'
+,'	}'
+,'	vec4 distort(vec4 sphere, float initPos[3], vec4 ray_dir, vec4 shape) {'
+,'		float dist = distance(ray_dir, normalize(max(ray_dir, shape - sphere)));'
+,'		float dotProd = dot(ray_dir, normalize(shape - sphere));'
+,'		sphere.x = clamp(sphere.x + .5 * sin(max(dotProd, dist)), sphere.x - dist, sphere.x + initPos[0]);'
+,'		sphere.y = clamp(sphere.y + .5 * sin(max(dotProd, dist)), sphere.y - dist, sphere.y + initPos[1]);'
+,'      return sphere;'
+,'	}'
+,'	void main()'
+,'	{'
+,'  	vec4 ray_orig = vec4(0.0, 0.0, -3.0, 1.0);'
+,'		vec4 ray_dir = normalize(vec4(v_pos.x, v_pos.y, 1.0, 0.0));'
+,'		vec4 p = vec4(pos1[0] - .75 + 2.5 * cos(u_time), pos1[1] + cos(u_time), pos1[2] + ((1. + .25 * cos(u_time) - 1. * sin(u_time))), .5);'
+,'		vec4 p2 = vec4(pos2[0] - 0.05 + 0.5 * cos(u_time), pos2[1], pos2[2] + ((0.01 + 0.01 * cos(u_time) - 0.01 * sin(u_time))), 1.2);'
+,'		if (u_mouse.z == 1.) {'
+,'			p2 = distort(p2, pos1, ray_dir, p);'
+,'		}'
+,'		float t = intersect_sphere(ray_orig, ray_dir, p);'
+,'		float t2 = intersect_sphere(ray_orig, ray_dir, p2);'
+,'		float first;'
+,'		vec4 normal;'
+,'		if (t > t2 && t2 != 100000.) {'
+,'			first = t2;'
+,'			normal = normalize(p2 - (ray_orig + ray_dir * t2));'
+,'		} else if (t < t2 && t != 100000.) {'
+,'			first = t;'
+,'			normal = normalize(p - (ray_orig + ray_dir * t));'
+,'		}'
+,'		'
+,'		if (t == 100000. && t2 == 100000.) {'
+,'			gl_FragColor = bg_shading(ray_dir) * vec4(0.5, 0.4, 0.3, 0.0);'
+,'		}'		
+,'		else {'
+,'			vec4 bg_color = shading(ray_dir);'
+,'			ray_dir = reflect(ray_dir, normal);'
+,'			vec4 color = (first == t) ? shading(ray_dir) * vec4(color1[0], color1[1], color1[2], 1.0) : shading(ray_dir) * vec4(color2[0], color2[1], color2[2], 1.0);'
+,'			gl_FragColor = vec4( mix(vec3(bg_color), vec3(color), step(0.0, first)), 1.0 );'
+,'		}'
+,'	}'
+].join('\n');
+
+// START GL PROGRAM
+
+start_gl("canvas1", vertexShader, fragmentShader);
+
+</script>
+
+<body>
+	<div>
+		<center>
+			<canvas id="canvas1" width="640" height="640"></canvas>
+		</center>
+	</div>
+	<div>
+		<p>
+			Pass any two sphere positions and colors to GLSL from the JS layer, along with some background color. Mouse-click for cool distortion!
+		</p>
+	</div>
+</body>

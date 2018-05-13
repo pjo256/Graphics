@@ -1,0 +1,291 @@
+<head>
+<style>
+   body {background-color: #000000;}
+   p {width: 300px; margin: 100px auto ; padding: 20px; border: 1px solid #ccc5a2; color: #ffffff; font-size: 12px; font-family: "Lucida Grand",verdana,arial,sans-serif;}
+   canvas {vertical-align: top;}
+</style>
+<script src=/static/js/g.js></script>
+<script src=/static/js/matrix_canvasRocket.js></script>
+</head>
+<body onload=g_start()>
+<div>
+   <center> <canvas id=myCanvas1 width=640 height=480></canvas> </center>
+      <script> 
+      
+      var w, h, g, m, mouseX, mouseY;
+   
+      //'nebula.png' from Jesse Freeman's Super Jetroid, 'fire.png' from blazehunter101 @ DeviantArt
+   
+      var img = new Image();
+      img.src = '/static/images/nebula.png';
+   
+      var vy = 0;
+      
+      function setMouse(eventZ) {
+         var r = event.target.getBoundingClientRect();
+         mouseX = (event.clientX - r.left  ) / (r.right - r.left) * 2 - 1;
+         mouseY = (event.clientY - r.bottom) / (r.top - r.bottom) * 2 - 1;
+         if (eventZ !== undefined) mouseZ = eventZ;
+      }
+      myCanvas1.onmousedown = function(event) { setMouse(1); }
+      myCanvas1.onmousemove = function(event) { setMouse(); }
+      myCanvas1.onmouseup   = function(event) { setMouse(0); }
+      mouseX = mouseY = mouseZ = 0;
+   
+      var timePressed;
+      var active;
+   
+      // DRAW A CURVE ON THE 2D CANVAS.
+   
+      function drawCurve(C) {
+         g.beginPath();
+         for (var i = 0 ; i < C.length ; i++)
+            if (i == 0)
+               moveTo(C[i]);
+            else
+               lineTo(C[i]);
+         g.stroke();
+      }
+   
+      // VIEWPORT CONVERTS FROM 3D COORDS TO 2D CANVAS PIXELS.
+   
+      function viewport(p) {
+         return [ w/2 * p[0] + w/2, h/2 - p[1] * w/2 ];
+      }
+   
+      function moveTo(p) {
+         var q = m.transform(p);  // APPLY 3D MATRIX TRANFORMATION
+         var xy = viewport(q);    // APPLY VIEWPORT TRANSFORM
+         g.moveTo(xy[0], xy[1]);
+      }
+   
+      function getCanvasPoint(p) {
+         var q = m.transform(p);
+         var xy = viewport(q);
+         return xy;
+      }
+   
+      function lineTo(p) {
+         var q = m.transform(p);  // APPLY 3D MATRIX TRANFORMATION
+         var xy = viewport(q);    // APPLY VIEWPORT TRANSFORM
+         g.lineTo(xy[0], xy[1]);
+      }
+   
+      function pointOnObliqueCone(uv) {
+   
+         var u = uv[0];
+         var v = uv[1];
+   
+         var radius = v * 2;
+         var theta = u * 2 * Math.PI;
+         
+         var b = 3;
+         var h = 1;
+   
+         var P = [ 1., 1.3, 1.3 ];
+   
+         var uOnCurve = [ v * (b/2 * Math.cos(u)),  
+                          v * (b/2 + b/2 * Math.sin(u)),
+                          v * h ];
+         var apex = []
+   
+         for (var i = 0; i < P.length; i ++) {
+            apex.push( (1 - v) * P[i] );
+         }
+   
+         var S = []
+   
+         for (var i = 0; i < P.length; i ++) {
+            S.push( apex[i] + uOnCurve[i] );
+         }
+   
+         return S;
+      }
+   
+      function pointOnCone(uv, extra) {
+   
+         var u = uv[0];
+         var v = uv[1];
+   
+         var r = extra[0];
+         var t = extra[1];
+   
+         var radius = v * r;
+         var theta = u * t;
+   
+         return [ radius * Math.sin(theta),
+                  radius * Math.cos(theta),
+                  radius];
+      }
+   
+      // GIVEN PARAMETERS [u,v],
+      //    COMPUTE POINT ON A CYLINDER.
+   
+      function pointOnCylinder(uv, rad) {
+         var u = uv[0];
+         var v = uv[1];
+   
+         var theta = 2 * Math.PI * u;
+   
+         var r = rad, z = 1;
+   
+         // BACK
+   
+         if (v <= 0.25) {
+            r = 4 * v;
+            z = -1;
+         }
+   
+         // TUBE
+   
+         else if (v < 0.75) {
+            z = (v - 0.25) * 4 - 1;
+         }
+   
+         // FRONT
+   
+         else {
+            r = 1 - (v - .75) * 4;
+            z = 1;
+         }
+   
+         return [ r * Math.cos(theta),
+                  r * Math.sin(theta),
+             z]
+      }
+   
+      // SET MESH FINE-NESS TO TASTE.
+   
+      var nu = 22;
+      var nv = 10;
+   
+      // BUILD A PARAMETRIC 3D SHAPE, GIVEN A PARAMETRIC FUNCTION func.
+   
+      function makeShape(nu, nv, func, extra) {
+         var globe = [];
+         for (var j = 0 ; j <= nv ; j++) {
+            var v = (j / nv);
+            globe.push([]);
+            for (var i = 0 ; i <= nu; i ++) {
+               var u = (i / nu);
+               var p = func([u, v], extra);
+               globe[j].push(p);
+            }
+         }
+         return globe;
+      }
+   
+      // RENDER A PARAMETRIC SHAPE AS A COLLECTION OF FOUR SIDED POLYGONS.
+   
+      function renderShape(shape) {
+         var nj = shape.length;
+         var ni = shape[0].length;
+            
+         for (var j = 0 ; j < nj-1 ; j++) {
+            for (var i = 0 ; i < ni-1 ; i++) {
+               drawCurve([ shape[j    ][i    ],
+                           shape[j + 1][i    ],
+                   shape[j + 1][i + 1],
+                   shape[j    ][i + 1] ]);
+            }
+         }      
+      }
+   
+      myCanvas1.animate = function(_g) {
+         g = _g;
+         w = g.canvas.width;
+         h = g.canvas.height;
+         m = new Matrix();
+   
+         g.fillStyle = 'rgb(0,0,0)';
+         g.beginPath();
+         g.moveTo(0, 0);
+         g.lineTo(w, 0);
+         g.lineTo(w, h);
+         g.lineTo(0, h);
+         g.lineTo(0, 0);
+         g.fill();
+   
+         g.fillStyle = 'rgb(128,0,0)';
+         g.strokeStyle = 'rgb(255,255,255)';
+   
+   
+         //ANIMATE THE SCENE
+         m.identity();
+         var diff = 1;
+         if (mouseZ == 0) {
+            timePressed = 0;
+            active = false;
+         } else if (mouseZ == 1 && !active) {
+            timePressed = time;
+            active = true;
+         } else if (mouseZ == 1 && active) {
+            var diff = Math.abs(timePressed - time);
+         }
+   
+         var yTrans = (diff == 1) ? mouseY : Math.abs(mouseY * diff);
+   
+         m.translate(mouseX, yTrans, 0);
+         m.rotateX(Math.PI/2);
+         m.rotateZ(.3);
+         m.scale(.8);
+   
+         // DRAW THE X,Y,Z COORDINATE AXES.
+   
+         // SCALE DOWN A BIT.
+   
+         m.scale(.3,.3,.7);
+   
+         // CREATE THE SHAPE.
+   
+   
+         var hat = makeShape(nu * 2, nv * 2, pointOnCone, [1, 2 * Math.PI]);
+         var body = makeShape(nu * 3, nv * 3, pointOnCylinder, .9);
+         var booster = makeShape(nu, nv, pointOnCone, [0.5, 2 * Math.PI]);
+   
+         // PROCEDURALLY DISPLACE THE SHAPES VERTICES.
+      
+         // DRAW THE SHAPE IN BLACK.    
+         g.strokeStyle = 'rgb(255,255,255)';
+   
+         g.drawImage(img , 0, vy);
+         g.drawImage(img, 0, Math.abs(vy) - img.height);
+   
+         if (vy >= img.height) {
+            vy = 0;
+         }
+   
+         vy += 2;
+   
+         m.scale(0.5);
+         m.translate(0, 0, -2);
+         renderShape(hat);
+         m.translate(0, 0, 2);
+         renderShape(body);
+         m.translate(0, 1.9, 0.9);
+         renderShape(booster);
+         m.translate(0, -3.7, 0);
+         renderShape(booster);
+         if (mouseZ == 1 && active) {
+            var fire = new Image();
+            fire.src = "/static/images/fire.png";
+            var xyR = getCanvasPoint([0.0, 1.4, 0.5]);
+            var xyL = getCanvasPoint([0.0, 5.1, 0.5]);
+   
+            g.drawImage(fire, xyR[0], xyR[1]);
+            g.drawImage(fire, xyL[0], xyL[1]);
+   
+         }
+         m.translate(0, 3.7, 0);
+         m.translate(0, -1.9, -0.9);
+   
+         
+      }
+   
+   </script>
+</div>
+<div>
+<p> Spaceship! Move with mouse, hold down for booster ignition. Give the launch crew a few seconds to load assets. </p>
+</div>
+</body>
+
